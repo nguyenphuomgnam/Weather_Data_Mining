@@ -1,0 +1,14 @@
+# Bỏ qua thư mục môi trường (tên folder môi trường của bạn là gì thì điền vào đây)
+lab4_env/
+env/
+venv/
+.env
+
+# Bỏ qua file rác Python sinh ra
+__pycache__/
+*.pyc
+
+# Bỏ qua file checkpoint của Notebook
+.ipynb_checkpoints/
+
+*.pkl

@@ -11,7 +11,7 @@ from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tsa.arima.model import ARIMA
 
 # Reuse loading/cleaning helpers
-from .classification_library import (
+from classification_library import (
     Paths,
     _ensure_dirs,
     load_beijing_air_quality,
@@ -289,3 +289,84 @@ def forecast_workflow(
     out["result"].save(paths.data_processed / f"{artifacts_prefix}_model.pkl")
 
     return {"summary": summary, "pred_df": pred_df, "grid": gs}
+# ==============================================================================
+# PHẦN MỞ RỘNG CHO CHỦ ĐỀ 3: SARIMAX (ARIMA + Biến ngoại sinh)
+# ==============================================================================
+
+import pmdarima as pm
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+class SARIMAXForecaster:
+    """
+    Nâng cấp từ ARIMA: Hỗ trợ thêm biến ngoại sinh (Exogenous variables)
+    như TEMP, RAIN, WSPM để dự báo PM2.5 chính xác hơn.
+    """
+    def __init__(self, target_col='PM2.5', exog_cols=['TEMP', 'PRES', 'DEWP', 'RAIN', 'WSPM']):
+        self.target_col = target_col
+        self.exog_cols = exog_cols
+        self.model = None
+
+    def fit(self, train_df, seasonal=False, m=1):
+        """
+        Huấn luyện SARIMAX với biến ngoại sinh.
+        """
+        print(f"🚀 [SARIMAX] Bắt đầu huấn luyện với biến ngoại sinh: {self.exog_cols}...")
+        
+        # 1. Tách biến Mục tiêu (y) và Biến ngoại sinh (X)
+        y_train = train_df[self.target_col]
+        
+        # Kiểm tra xem có đủ cột ngoại sinh không
+        missing_cols = [c for c in self.exog_cols if c not in train_df.columns]
+        if missing_cols:
+            raise ValueError(f"❌ Thiếu cột biến ngoại sinh trong dữ liệu train: {missing_cols}")
+            
+        X_train = train_df[self.exog_cols].copy()
+        
+        # 2. Xử lý Missing Value cho X (Bắt buộc phải lấp đầy mới chạy được)
+        # Dùng ffill (lấy giá trị trước đó) và bfill (lấy giá trị sau đó)
+        X_train = X_train.ffill().bfill()
+        
+        # 3. Gọi auto_arima có tham số X
+        self.model = pm.auto_arima(
+            y_train,
+            X=X_train,           # <--- ĐIỂM KHÁC BIỆT QUAN TRỌNG NHẤT (Thêm X)
+            start_p=1, start_q=1,
+            max_p=3, max_q=3,    # Giới hạn p, q nhỏ để chạy nhanh
+            d=None,              # Để tự động tìm d (thường là 0 hoặc 1)
+            seasonal=seasonal,   # True nếu muốn bật chế độ mùa vụ (Chủ đề 2)
+            m=m,                 # Chu kỳ mùa vụ (ví dụ 24 nếu seasonal=True)
+            test='adf',
+            trace=True,          # Hiện log chạy
+            error_action='ignore',
+            suppress_warnings=True,
+            stepwise=True
+        )
+        print("✅ Đã tìm thấy mô hình tối ưu:")
+        print(f"   - Order: {self.model.order}")
+        print(f"   - Seasonal Order: {self.model.seasonal_order}")
+
+    def predict(self, test_df):
+        """
+        Dự báo PM2.5 dựa trên thời tiết của tập Test.
+        """
+        if self.model is None:
+            raise ValueError("❌ Model chưa được train! Hãy gọi fit() trước.")
+            
+        # Lấy X_test tương ứng với độ dài muốn dự báo
+        n_periods = len(test_df)
+        
+        # Xử lý Missing Value cho X_test
+        X_test = test_df[self.exog_cols].copy().ffill().bfill()
+        
+        print(f"🔮 Đang dự báo cho {n_periods} giờ tiếp theo...")
+        
+        # Dự báo
+        forecast, conf_int = self.model.predict(
+            n_periods=n_periods, 
+            X=X_test,            # <--- Cung cấp thông tin thời tiết để dự báo PM2.5
+            return_conf_int=True
+        )
+        
+        return forecast, conf_int, self.model.order
