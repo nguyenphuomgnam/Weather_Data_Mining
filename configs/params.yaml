@@ -1,0 +1,51 @@
+# 1. Cấu hình Dữ liệu chung
+data:
+  raw_path: "data/raw/weatherHistory.csv"
+  processed_path: "data/processed/weather_cleaned.csv"
+
+columns:
+  datetime_col: "Formatted Date"
+  drop_cols: 
+    - "Loud Cover"
+    - "Daily Summary"
+
+preprocessing:
+  fill_missing_precip: "rain"
+
+# 2. Cấu hình Rời rạc hoá & Khai phá luật (Association)
+association:
+  min_support: 0.05
+  min_confidence: 0.5
+  discretize_bins:
+    temp: [-100, 10, 25, 100]
+    temp_labels: ["Cold", "Mild", "Hot"]
+    humidity: [0, 0.4, 0.7, 1.0]
+    humidity_labels: ["Dry", "Normal", "Humid"]
+    wind: [0, 10, 20, 150]
+    wind_labels: ["Calm", "Breeze", "Windy"]
+
+# 3. Cấu hình Phân cụm (Clustering)
+clustering:
+  features: 
+    - "Temperature (C)"
+    - "Humidity"
+    - "Wind Speed (km/h)"
+    - "Pressure (millibars)"
+  n_clusters: 4
+  random_state: 42
+
+# 4. Cấu hình Phân lớp (Classification)
+classification:
+  target_col: "Summary"
+  test_size: 0.2
+  random_state: 42
+  top_k_classes: 5       # Lấy 5 nhãn phổ biến nhất
+  rf_params:
+    n_estimators: 100
+    max_depth: 15        # Giới hạn độ sâu để tránh học vẹt
+
+timeseries:
+  target_col: "Temperature (C)"
+  resample_rule: "D"          # 'D' là Daily (Tính trung bình theo ngày để dự báo)
+  train_split_ratio: 0.8      # Chia 80% Train, 20% Test theo THỜI GIAN
+  arima_order: [5, 1, 0]      # Bậc của ARIMA (p, d, q)

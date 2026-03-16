@@ -1,182 +1,142 @@
-# 📄 Báo cáo Phân tích Dữ liệu & Quy trình Mô hình hóa
+# 🌤️ DỰ BÁO VÀ PHÂN TÍCH THỜI TIẾT ĐA CHIỀU (WEATHER DATA MINING)
 
-## 1. Q1: Khám phá & Làm sạch Dữ liệu (Preprocessing & EDA)
+> **Học phần:** Khai phá Dữ liệu (Data Mining)
+> **Giảng viên hướng dẫn:** ThS. Lê Thị Thùy Trang
+> **Nhóm thực hiện:** Tam Đại Quỷ Vương
 
-### 🔍 Tổng quan Dữ liệu
-- **Phạm vi thời gian:** Từ `2013-03-01` đến `2017-02-28`.
-- **Tần suất:** Hourly (Hàng giờ). Dữ liệu liên tục, đảm bảo tính chất chuỗi thời gian.
-- **Tính dừng (Stationarity):**
-    - Kiểm định ADF (Augmented Dickey-Fuller) cho thấy `p-value < 0.05`.
-    - **Kết luận:** Chuỗi PM2.5 có tính dừng (stationary), về mặt lý thuyết có thể chọn `d=0`. Tuy nhiên, do có tính mùa vụ mạnh, việc sai phân (differencing) vẫn có thể được cân nhắc.
-
-### ⚠️ Phân tích Dữ liệu thiếu (Missing Values)
-- Dữ liệu bị thiếu ở nhiều cột, trong đó nhóm biến khí tượng (`TEMP`, `PRES`, `DEWP`) thiếu ít (< 0.1%), nhưng nhóm biến ô nhiễm (`PM2.5`, `CO`, `NO2`) thiếu nhiều hơn (~2-5%).
-- **Biểu đồ Heatmap** cho thấy dữ liệu thường thiếu theo từng mảng (chunks) liên tục, gợi ý nguyên nhân do trạm quan trắc bảo trì hoặc lỗi cảm biến trong một khoảng thời gian.
-
-> **💡 Insight Quan trọng: Tại sao thiếu PM2.5 là đáng lo nhất?**
-> Việc thiếu biến mục tiêu (`PM2.5`) nguy hiểm hơn thiếu biến đầu vào (`TEMP`, `WSPM`) vì các mô hình chuỗi thời gian (như ARIMA) hoạt động dựa trên cơ chế **Tự hồi quy (Auto-Regressive)**. Mô hình cần giá trị quá khứ ($y_{t-1}$) để dự báo hiện tại ($y_t$). Nếu chuỗi bị đứt gãy, mô hình sẽ mất "đà" và không thể thực hiện dự báo liên tục cho các bước tiếp theo.
+Dự án này ứng dụng các kỹ thuật Khai phá dữ liệu và Học máy (Machine Learning) để phân tích bộ dữ liệu khí tượng lịch sử. Mục tiêu không chỉ là dự báo nhiệt độ, mà còn khai phá các quy luật ẩn sâu trong biến đổi khí hậu, phân cụm trạng thái thời tiết và phát hiện các điểm bất thường (Anomaly Detection) của hệ thống cảm biến.
 
 ---
 
-## 2. Q2: Đánh giá Baseline Hồi quy (Regression Model)
+## 🚀 CÁC TÍNH NĂNG VÀ PHÁT HIỆN CỐT LÕI (KEY INSIGHTS)
 
-Mô hình Baseline sử dụng thuật toán Hồi quy (Random Forest/Linear) với các đặc trưng được sinh ra từ thời gian (Feature Engineering).
+Dự án được chia thành 5 phân hệ lõi, giải quyết trọn vẹn vòng đời của dữ liệu:
 
-### 🛠️ Giải thích kỹ thuật
-1.  **Tại sao Lag 24h lại quan trọng?**
-    - Bụi mịn PM2.5 tuân theo nhịp sinh hoạt của con người và chu kỳ tự nhiên (ngày/đêm).
-    - Ví dụ: Giờ cao điểm 8h sáng hôm nay thường có mức độ ô nhiễm tương đồng với 8h sáng hôm qua. Biến `lag_24` giúp mô hình nắm bắt được **tính mùa vụ theo ngày (Daily Seasonality)** này.
+### 1. Khám phá Dữ liệu (EDA) & Tiền xử lý
+* **Phân tích phân phối:** Làm rõ sự mất cân bằng dữ liệu (Partly Cloudy chiếm đa số) để quyết định sử dụng kỹ thuật `class_weight='balanced'`.
+* **Tương quan vật lý:** Heatmap chứng minh mối tương quan nghịch biến mạnh mẽ (-0.63) giữa Nhiệt độ và Độ ẩm, làm cơ sở khoa học cho các mô hình phía sau.
+* **Biểu đồ cần chèn:** *(Chụp 3 biểu đồ EDA vừa vẽ ghép lại)*
+    ![EDA Data Distribution](assets/eda_charts.png)
 
-2.  **Tại sao phải chia Train/Test theo Cutoff?**
-    - Dữ liệu chuỗi thời gian có tính thứ tự nghiêm ngặt.
-    - Nếu dùng `random_split` (xáo trộn ngẫu nhiên), mô hình sẽ dùng dữ liệu của "tương lai" để dự đoán "quá khứ". Đây là lỗi **Data Leakage** (rò rỉ dữ liệu).
-    - **Giải pháp:** Cắt ngang tại mốc thời gian (ví dụ: `2017-01-01`), quá khứ dùng để huấn luyện, tương lai dùng để kiểm thử.
+### 2. Khai phá Luật Kết hợp (Association Rules - FP-Growth)
+* **Mục tiêu:** Tìm ra các điều kiện thời tiết thường xuyên đồng xuất hiện và so sánh sự dịch chuyển theo mùa.
+* **Insight nổi bật:** * *Mùa Hè:* `(Độ ẩm: Khô, Gió: Lặng) ➔ (Nhiệt độ: Nóng)` (Confidence > 90%, Lift ~ 3.0). Phát hiện này là cơ sở quan trọng để xây dựng hệ thống cảnh báo sốc nhiệt.
+    * *Mùa Đông:* Sương mù có tính liên kết chặt chẽ với bộ ba `(Lạnh, Ẩm ướt, Lặng gió)`.
+    ![Sunmer](assets/sunmer.png)
 
-3.  **Phân biệt RMSE và MAE:**
-    - **MAE (Mean Absolute Error):** Sai số trung bình. Phản ánh độ lệch thông thường hàng ngày.
-    - **RMSE (Root Mean Squared Error):** Sai số bình phương trung bình. RMSE thường lớn hơn MAE.
-    - **Ý nghĩa:** RMSE phạt rất nặng các sai số lớn. Nếu `RMSE >> MAE`, chứng tỏ mô hình đang dự báo sai lệch rất nhiều tại các **đỉnh ô nhiễm (Spikes/Outliers)**. Nếu mục tiêu là cảnh báo các đợt ô nhiễm nguy hiểm, cần ưu tiên giảm RMSE.
 
----
+### 3. Phân cụm Trạng thái Thời tiết (Clustering - K-Means)
+* **Mục tiêu:** Nhóm các ngày có kiểu thời tiết tương đồng và xây dựng hồ sơ cụm (Profiling).
+* **Insight nổi bật:** Thuật toán (K=4) không chỉ nhận diện thành công 3 hình thái khí hậu tự nhiên (Nồm ẩm, Nắng hanh, Gió bão) mà còn đóng vai trò như một màng lọc dữ liệu xuất sắc khi **gom toàn bộ 1,288 bản ghi bị lỗi cảm biến (Áp suất = 0) vào một cụm riêng biệt**.
+* **Biểu đồ cần chèn:** *(Chụp biểu đồ PCA scatter plot)*
+    ![K-Means PCA Clustering](assets/pca_clustering.png)
 
-## 3. Q3: Quy trình quyết định tham số ARIMA (p, d, q)
+### 4. Phân lớp Hiện tượng Thời tiết (Classification - RF/XGBoost)
+* **Mục tiêu:** Dự báo nhãn thời tiết (Mưa, Nắng, Có mây...) dựa trên các chỉ số cảm biến bề mặt. 
+* **So sánh Mô hình (Baseline vs Cải tiến):**
+    * *Decision Tree (Baseline):* F1-Macro chỉ đạt ~0.35.
+    * *Random Forest & XGBoost (Cải tiến):* Vượt trội hoàn toàn, đẩy F1-Macro lên **0.54**.
+* **Phân tích lỗi (Error Analysis):** Confusion Matrix chỉ ra rằng mô hình làm cực tốt ở việc nhận diện *Sương mù (Foggy)* nhưng gặp khó khăn ở ranh giới giữa *Partly Cloudy* và *Mostly Cloudy* do thiếu dữ liệu vệ tinh về độ che phủ mây.
+* **Biểu đồ cần chèn:** *(Chụp biểu đồ thanh ngang so sánh 3 mô hình)*
+    ![Models Comparison](assets/models_comparison.png)
 
-Để chọn được mô hình ARIMA tối ưu, nhóm áp dụng quy trình 4 bước sau:
-
-### 🔹 Bước 1: Xác định `d` (Intergrated - Sai phân)
-- Dựa vào kiểm định **ADF Test**.
-- Nếu chuỗi chưa dừng ($p > 0.05$): Thực hiện sai phân bậc 1 ($d=1$).
-- Nếu chuỗi đã dừng ($p < 0.05$): Giữ nguyên ($d=0$).
-
-### 🔹 Bước 2: Ước lượng `p` và `q`
-- Quan sát biểu đồ **ACF (Autocorrelation Function)** và **PACF (Partial Autocorrelation Function)**.
-    - **PACF:** Dùng để gợi ý bậc tự hồi quy **`p`** (nhìn điểm cắt - cut off).
-    - **ACF:** Dùng để gợi ý bậc trung bình trượt **`q`**.
-
-### 🔹 Bước 3: Tối ưu hóa (Grid Search)
-- Do biểu đồ thực tế thường nhiễu, nhóm sử dụng **Grid Search** (vét cạn) các tổ hợp `(p, d, q)` trong khoảng nhỏ (từ 0 đến 3).
-- **Tiêu chí chọn:** Mô hình có chỉ số **AIC (Akaike Information Criterion)** thấp nhất được chọn. AIC thấp nghĩa là mô hình cân bằng tốt giữa độ chính xác và độ đơn giản (tránh Overfitting).
-
-### 🔹 Bước 4: Chẩn đoán phần dư (Residual Check)
-- Sau khi fit mô hình, kiểm tra phần dư (Residuals = Thực tế - Dự báo).
-- **Yêu cầu:** Phần dư phải xấp xỉ **White Noise** (Nhiễu trắng) - tức là dao động ngẫu nhiên quanh 0, không còn quy luật hay xu hướng nào. Nếu phần dư vẫn còn hình sin hoặc xu hướng, mô hình cần được cải thiện (ví dụ: chuyển sang SARIMA).
-
----
-# 🌫️ Case Study: Cuộc chiến "Tiên tri" trong màn sương - Khi Máy Học đối đầu Thống Kê
-
-## 👥 Thông tin Nhóm
-## 👥 Thông tin Nhóm
-- **Nhóm:** [TAM ĐẠI QUỶ VƯƠNG]
-- **Thành viên:** - [Nguyễn Phương Nam]
-  - [Trần Mạnh Tiến]
-  - [Phạm văn Huy]
-- **Chủ đề:** Dự báo chuỗi thời gian (Time Series Forecasting) nồng độ bụi mịn PM2.5.
-- **Dataset:** Beijing Multi-Site Air Quality (Trạm Aotizhongxin) - Dữ liệu thực tế 2013-2017.
-
-## Mục tiêu
-Không chỉ đơn thuần là dự báo con số, mục tiêu của nhóm là xây dựng một hệ thống cảnh báo sớm ô nhiễm không khí. Chúng tôi đặt lên bàn cân hai phương pháp: **Random Forest (Hồi quy)** và **SARIMAX (Thống kê)** để tìm ra đâu là "nhà tiên tri" đại tài nhất cho bầu trời Bắc Kinh.
+### 5. Dự báo Chuỗi thời gian (Time-Series Forecasting - Holt-Winters)
+* **Mục tiêu:** Dự báo nhiệt độ dài hạn, đảm bảo nguyên tắc chống Rò rỉ dữ liệu (Data Leakage) bằng chia cắt theo thời gian (Chronological Split).
+* **Kết quả:** Mô hình **Holt-Winters (Exponential Smoothing)** với chu kỳ `seasonal_periods=365` đã chứng minh sự vượt trội hoàn toàn so với ARIMA cơ bản. 
+    * **MAE:** Giảm từ 7.35°C (ARIMA) xuống còn **3.04°C** (Holt-Winters).
+    * **Chẩn đoán phần dư (Residuals):** Phần dư dao động dạng nhiễu trắng, chứng tỏ mô hình đã nắm bắt thành công tính mùa vụ. Các điểm Outlier (gai nhọn) được giữ lại để cảnh báo các đợt thời tiết cực đoan.
+     ![DuBao](assets/dubao.png)
 
 ---
 
-## 1. Ý tưởng & Feynman Style
-**Giải thích cuộc chiến này cho "bà ngoại" cũng hiểu:**
+## 📂 CẤU TRÚC THƯ MỤC CHUẨN MỰC
 
-Hãy tưởng tượng việc dự báo bụi ngày mai giống như việc đoán xem **"Ngày mai kẹt xe thế nào?"**. Có 2 anh chàng tham gia cuộc thi này:
-
-1.  **Anh Hồi Quy (Random Forest): "Kẻ Học Vẹt Siêu Trí Nhớ"**
-    * Anh này không quan tâm đến nguyên lý khí động học hay quy luật thời gian. Anh ta chỉ cầm quyển sổ ghi chép 5 năm qua và học thuộc lòng:
-    * > *"Cứ hễ 7h sáng hôm qua tắc đường, thì 80% là 7h sáng hôm nay cũng tắc."*
-    * **Vũ khí:** Trí nhớ ngắn hạn cực tốt (Lag 24h).
-
-2.  **Anh Thống Kê (SARIMAX): "Nhà Khí Tượng Học Khó Tính"**
-    * Anh này bài bản hơn nhiều. Anh ta nhìn lên trời, xem mây, đo gió, tính toán chu kỳ mùa vụ (sáng/tối) để suy luận ra kết quả.
-    * > *"Gió đang thổi mạnh hướng Bắc, cộng với chu kỳ giờ thấp điểm, nên bụi sẽ giảm 10 đơn vị."*
-    * **Vũ khí:** Công thức toán học + Biến ngoại sinh (Gió, Mưa).
-
-**Câu hỏi lớn:** Liệu sự bài bản, khoa học (SARIMAX) có thắng được sự thực dụng, nhanh nhạy (Random Forest) trong một môi trường hỗn loạn như Bắc Kinh?
-
----
-
-## 2. Quy trình Thực hiện (The Pipeline)
-Nhóm áp dụng quy trình chuẩn Data Science trên nền tảng `Papermill` để tự động hóa:
-1)  **Data Cleaning:** Xử lý dữ liệu thiếu (đặc biệt là cột PM2.5).
-2)  **Feature Engineering:** Tạo độ trễ (Lag) cho mô hình Hồi quy.
-3)  **Stationarity Check:** Kiểm định tính dừng (ADF Test) để chuẩn bị cho ARIMA.
-4)  **Modeling:** Chạy song song 2 mô hình để so găng.
-5)  **Evaluation:** Dùng RMSE (Sai số tại các đỉnh nhọn) để chấm điểm.
-
----
-
-## 3. Tiền xử lý Dữ liệu: Những cái bẫy chết người
-Dữ liệu không khí "bẩn" theo đúng nghĩa đen lẫn nghĩa bóng. Nhóm đã xử lý 3 vấn đề cốt tử:
-
-* **Bẫy Missing Value:** Dữ liệu PM2.5 bị thiếu ~3%.
-    * *Giải pháp:* Không được xóa dòng (vì sẽ làm đứt gãy chuỗi thời gian). Nhóm dùng phương pháp nội suy tuyến tính (Linear Interpolation) để "vá" lại các lỗ hổng.
-* **Bẫy Outliers (Ngoại lai):** Có những thời điểm bụi vọt lên > 500 (mức Tử thần).
-    * *Quyết định:* **Giữ lại toàn bộ.** Đây không phải nhiễu, đây là thảm họa môi trường thực tế cần dự báo. Xóa nó đi là xóa bỏ mục đích của dự án.
-* **Bẫy Data Leakage:**
-    * *Nguyên tắc:* Không được chia Train/Test ngẫu nhiên. Phải cắt theo thời gian (Cutoff: 01/01/2017). Quá khứ dùng để học, tương lai để thi.
-
-**Thống kê:** Tập dữ liệu sau sạch gồm ~35.000 giờ quan sát liên tục.
+Dự án được thiết kế theo kiến trúc module hóa (Modular Design) giúp dễ dàng bảo trì và mở rộng:
+```text
+WEATHER_MINING/
+├── configs/
+│   └── params.yaml                 # Trung tâm điều khiển mọi siêu tham số
+├── data/
+│   ├── raw/weatherHistory.csv      # Dữ liệu gốc từ Kaggle
+│   └── processed/                  # Dữ liệu sau khi làm sạch
+├── notebooks/
+│   ├── 01_eda_and_cleaning.ipynb   # Tiền xử lý & EDA
+│   ├── 02_association_rules.ipynb  # FP-Growth theo mùa
+│   ├── 03_weather_clustering.ipynb # K-Means & PCA
+│   ├── 04_weather_classification.ipynb # XGBoost & Phân tích lỗi
+│   └── 05_time_series_forecasting.ipynb# ARIMA vs Holt-Winters
+├── src/
+│   ├── __init__.py
+│   ├── data_cleaner.py             
+│   ├── association.py              
+│   ├── clustering_models.py        
+│   ├── classification_models.py    
+│   └── time_series_models.py       
+├── app.py                          # 🌐 Giao diện Streamlit Dashboard
+├── requirements.txt                
+└── README.md                       
+```
 
 ---
 
-## 4. Diễn biến cuộc so găng
+## ⚙️ HƯỚNG DẪN CÀI ĐẶT VÀ SỬ DỤNG
 
-### Hiệp 1: Baseline Regression (Random Forest)
-Nhóm tạo ra các biến trễ (`PM2.5_lag1`, `PM2.5_lag24`...).
-* **Chiến thuật:** "Nhìn bài" quá khứ. Lấy giá trị của đúng giờ này hôm qua làm đầu vào cho hôm nay.
-* **Kết quả:**
-    * **RMSE:** ~22.8
-    * **Nhận xét:** Đường dự báo bám cực sát thực tế, bắt được cả những đỉnh nhọn (Spikes).
+Để đảm bảo dự án chạy mượt mà không gặp lỗi xung đột phiên bản, vui lòng tuân thủ nghiêm ngặt các bước cài đặt dưới đây.
 
-### Hiệp 2: SARIMAX (Nâng cấp & Tối ưu)
-Đây là phần nhóm tốn nhiều công sức nhất (Chủ đề 3).
-* **Thử nghiệm 1 (Auto):** Để máy tự học $\rightarrow$ Thất bại (RMSE > 100).
-* **Thử nghiệm 2 (Rolling Forecast):** Cập nhật dữ liệu từng giờ $\rightarrow$ Khá hơn (RMSE ~53).
-* **Thử nghiệm 3 (Manual Tuning + Exog):** Ép mô hình học cấu trúc mùa vụ 24h + Thêm biến Gió (WSPM) và Mưa (RAIN).
-    * **Kết quả:** **RMSE ~45.5**.
+### Bước 1: Chuẩn bị Mã nguồn và Dữ liệu
+1. Clone repository này về máy local của bạn:
+   ```bash
+   git clone [https://github.com/your-username/Weather_Data_Mining.git](https://github.com/your-username/Weather_Data_Mining.git)
+   cd Weather_Data_Mining
+   ```
+2. Tải bộ dữ liệu **Weather Dataset** từ Kaggle.
+3. Giải nén và đổi tên file thành `weatherHistory.csv` (nếu cần).
+4. Đặt file vào chính xác đường dẫn sau: `data/raw/weatherHistory.csv`.
 
-**Hình 1:** So sánh SARIMAX vs Thực tế
-![So sánh SARIMAX vs Thực tế](images/anh1.png)
-*(Hình ảnh so sánh: Đường màu đỏ (Random Forest) bám sát thực tế, trong khi đường màu xanh (SARIMAX) có xu hướng bị trễ pha và biên độ dao động thấp hơn)*
+### Bước 2: Thiết lập Môi trường Ảo (Virtual Environment)
+Việc sử dụng môi trường ảo là **bắt buộc** để cô lập các thư viện của dự án, tránh ảnh hưởng đến hệ thống Python gốc.
 
----
+* **Đối với Windows:**
+  ```bash
+  python -m venv venv
+  venv\Scripts\activate
+  ```
+* **Đối với macOS/Linux:**
+  ```bash
+  python3 -m venv venv
+  source venv/bin/activate
+  ```
+*(Dấu hiệu thành công: Bạn sẽ thấy chữ `(venv)` xuất hiện ở đầu dòng lệnh Terminal).*
 
-## 5. Insight đắt giá từ thất bại
-Tại sao mô hình phức tạp (SARIMAX) lại thua mô hình đơn giản (Random Forest) với tỷ số **45.5 vs 22.8**? Nhóm rút ra 3 bài học xương máu:
+### Bước 3: Cài đặt Thư viện (Dependencies)
+Nâng cấp `pip` và cài đặt toàn bộ gói phần mềm được liệt kê trong `requirements.txt`:
+  ```bash
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
+  ```
+*Lưu ý: Quá trình này sẽ tự động cài đặt các thư viện lõi như `pandas`, `scikit-learn`, `mlxtend` (cho FP-Growth) và `statsmodels` (cho Holt-Winters).*
 
-### Insight #1: Sự tuyến tính là "Điểm yếu chí mạng"
-* **Sự thật:** SARIMAX cố gắng vẽ một đường cong mềm mại (Linear). Nhưng ô nhiễm Bắc Kinh biến động cực "gắt" (đang 50 vọt lên 400 trong vài giờ).
-* **Bài học:** Với dữ liệu hỗn loạn (Chaotic), các mô hình phi tuyến tính dạng cây (Tree-based) như Random Forest luôn vượt trội.
+### Bước 4: Chạy Pipeline Phân tích (Execution)
+Toàn bộ logic của dự án được điều khiển bởi file cấu hình `configs/params.yaml`. Bạn có thể thay đổi các siêu tham số (ngưỡng Support/Confidence, số cụm K, tham số chu kỳ mùa vụ) tại file này mà không cần chạm vào code lõi.
 
-### Insight #2: Sức mạnh của "Trí nhớ" (Memory)
-* **Sự thật:** Random Forest dùng `Lag_24` (giá trị thực của hôm qua). SARIMAX dùng Sai phân (sự chênh lệch).
-* **Bài học:** Đôi khi, biết chính xác "hôm qua là bao nhiêu" quan trọng hơn là biết "xu hướng đang tăng hay giảm".
-
-### Insight #3: Giá trị của "Hộp trắng" (White Box)
-* **Sự thật:** Dù thua, nhưng SARIMAX cho ta biết: **"Khi Gió tăng 1m/s, Bụi giảm 15 đơn vị"**.
-* **Bài học:** Random Forest dùng để **Dự báo** (cho dân thường). SARIMAX dùng để **Ra chính sách** (cho chính quyền).
-
----
-
-## 6. Kết luận & Đề xuất Chiến lược "A.R.C"
-
-Từ kết quả thực nghiệm, nhóm đề xuất chiến lược **A.R.C** cho trạm quan trắc khí tượng:
-
-* 🚨 **A - Alert (Cảnh báo ngắn hạn):**
-    Sử dụng **Random Forest** để chạy dự báo hàng giờ trên bảng điện tử công cộng. Mục tiêu: Độ chính xác cao nhất để người dân biết có nên đeo khẩu trang không.
-
-* 🌪️ **R - Reason (Phân tích nguyên nhân):**
-    Sử dụng **SARIMAX** để phân tích tác động sau mỗi đợt không khí lạnh hoặc sau các lệnh cấm xe. Giúp trả lời câu hỏi: "Gió mùa đông bắc về có thực sự làm sạch không khí không?".
-
-* 🔄 **C - Continuous (Cập nhật liên tục):**
-    Triển khai cơ chế **Rolling Forecast**. Mô hình phải được training lại (re-fit) mỗi đêm, vì "tính nết" của thời tiết thay đổi theo mùa, mô hình cũ sẽ nhanh chóng lỗi thời.
+Để tái tạo kết quả, hãy mở VS Code, đảm bảo đã chọn đúng Kernel là `venv` và chạy lần lượt các Notebook theo thứ tự:
+1. 🟢 `01_eda_and_cleaning.ipynb`: Tiền xử lý, chuẩn hóa Timezone và xử lý Missing Values.
+2. 🟢 `02_association_rules.ipynb`: Chạy thuật toán FP-Growth tìm luật thời tiết theo mùa.
+3. 🟢 `03_weather_clustering.ipynb`: Phân cụm K-Means, trích xuất Profile và phát hiện Anomaly.
+4. 🟢 `04_weather_classification.ipynb`: Huấn luyện Random Forest, xuất báo cáo F1-Macro.
+5. 🟢 `05_time_series_forecasting.ipynb`: Đánh giá ARIMA vs Holt-Winters, phân tích Residuals.
 
 ---
 
-## 7. Tài nguyên & Slide
-- **Notebook:** `notebooks/topic3_sarimax_run.ipynb`
-- **Source Code:** `src/timeseries_library.py` (OOP Design)
+## 👨‍💻 THÀNH VIÊN THỰC HIỆN
 
-> *"Trong dữ liệu, đôi khi kẻ thắng cuộc không phải là kẻ thông minh nhất, mà là kẻ có trí nhớ tốt nhất."*
+**Nhóm: Tam Đại Quỷ Vương**
+* **Thành viên 1:** [Nguyễn Phương Nam] - [1771020486] - (Vai trò: Thiết kế Pipeline & Xử lý Chuỗi thời gian)
+* **Thành viên 2:** [Phạm Văn Huy] - [1771020353] - (Vai trò: Tiền xử lý & Khai phá luật FP-Growth)
+* **Thành viên 3:** [Trần Mạnh Tiến] - [1771020665] - (Vai trò: Phân cụm K-Means & Phân lớp RF/XGB)
+
+## 🙏 LỜI CẢM ƠN
+Nhóm xin gửi lời cảm ơn chân thành đến **ThS. Lê Thị Thùy Trang** đã cung cấp những nền tảng kiến thức vững chắc và định hướng chi tiết (đặc biệt là kỹ thuật chống Data Leakage trong Time-Series), giúp nhóm hoàn thành đồ án môn Khai phá dữ liệu một cách trọn vẹn và mang tính ứng dụng thực tiễn cao.
+
+---
+*Developed with ❤️ by Tam Đại Quỷ Vương Team | 2026*

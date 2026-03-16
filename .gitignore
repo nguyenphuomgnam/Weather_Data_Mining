@@ -1,14 +1,18 @@
-# Bỏ qua thư mục môi trường (tên folder môi trường của bạn là gì thì điền vào đây)
-lab4_env/
-env/
+# Môi trường ảo
 venv/
+env/
 .env
 
-# Bỏ qua file rác Python sinh ra
+# Thư mục cache của Python và Jupyter
 __pycache__/
 *.pyc
-
-# Bỏ qua file checkpoint của Notebook
 .ipynb_checkpoints/
 
-*.pkl
+# Bỏ qua dữ liệu thô quá nặng (Chỉ giữ lại dữ liệu sample hoặc config)
+data/raw/
+data/processed/
+outputs/
+
+# File cấu hình IDE
+.vscode/
+.idea/
