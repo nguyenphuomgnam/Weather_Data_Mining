@@ -86,7 +86,7 @@ WEATHER_MINING/
 ### Bước 1: Chuẩn bị Mã nguồn và Dữ liệu
 1. Clone repository này về máy local của bạn:
    ```bash
-   git clone [https://github.com/your-username/Weather_Data_Mining.git](https://github.com/your-username/Weather_Data_Mining.git)
+   git clone [https://github.com/nguyenphuomgnam/Weather_Data_Mining.git](https://github.com/nguyenphuomgnam/Weather_Data_Mining.git)
    cd Weather_Data_Mining
    ```
 2. Tải bộ dữ liệu **Weather Dataset** từ Kaggle.
