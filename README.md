@@ -1,5 +1,5 @@
 # 🌤️ DỰ BÁO VÀ PHÂN TÍCH THỜI TIẾT ĐA CHIỀU (WEATHER DATA MINING)
-
+[link app](https://weatherdatamining-8iiktzk6k5tazhwggrhgmh.streamlit.app/)
 > **Học phần:** Khai phá Dữ liệu (Data Mining)
 > **Giảng viên hướng dẫn:** ThS. Lê Thị Thùy Trang
 > **Nhóm thực hiện:** Tam Đại Quỷ Vương
